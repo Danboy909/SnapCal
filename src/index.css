@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+body {
+  @apply bg-[#F8F9FB] text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-50 selection:bg-blue-900 selection:text-blue-100;
+}
+
+.app-container {
+  @apply bg-slate-50 text-slate-900;
+}
+
+.dark .app-container {
+  @apply bg-slate-950 text-slate-50;
+}
+
+/* Dark Mode Component Overrides */
+.premium-card {
+  @apply bg-white border border-slate-100 shadow-xl shadow-slate-200/50 transition-colors;
+}
+
+.dark .premium-card {
+  @apply bg-slate-800 border-slate-700 shadow-slate-900/50;
+}
+
+.premium-input {
+  @apply bg-slate-50 text-slate-800 placeholder:text-slate-400 transition-colors;
+}
+
+.dark .premium-input {
+  @apply bg-slate-900 text-slate-100 placeholder:text-slate-500;
+}
+
+.premium-button-secondary {
+  @apply bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900;
+}
+
+.dark .premium-button-secondary {
+  @apply bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white;
+}
+
+.premium-dashed-area {
+  @apply bg-white border-slate-300 transition-all;
+}
+
+.dark .premium-dashed-area {
+  @apply bg-slate-800 border-slate-700;
+}
+
+.premium-list-item {
+  @apply bg-white border-transparent hover:bg-slate-50;
+}
+
+.dark .premium-list-item {
+  @apply bg-slate-800 hover:bg-slate-700 border-l-slate-700;
+}
+
+.premium-popover {
+  @apply bg-white border border-slate-100 shadow-xl shadow-slate-200/50;
+}
+
+.dark .premium-popover {
+  @apply bg-slate-800 border-slate-700 shadow-slate-900/50;
+}
+
+.premium-header {
+  @apply bg-white/80 border-b border-slate-200 backdrop-blur-md sticky top-0 z-10 transition-all;
+}
+
+.dark .premium-header {
+  @apply bg-slate-900/80 border-slate-800;
+}
+
+.premium-button-icon {
+  @apply bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all;
+}
+
+.dark .premium-button-icon {
+  @apply bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100;
+}
