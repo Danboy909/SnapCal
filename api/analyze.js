@@ -43,14 +43,28 @@ const SHARED_PROMPT_RULES = (currentDate, year) => `
   - No events found → return { "events": [], "confidence": 0 }.
 `;
 
-export async function analyzeHandler(req, res) {
-    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+export default async function handler(req, res) {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // Handle OPTIONS preflight
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    // Only allow POST
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'unknown';
     if (isRateLimited(ip)) {
         return res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
         return res.status(500).json({ error: 'Server configuration error: GEMINI_API_KEY not set.' });
     }
@@ -76,7 +90,7 @@ export async function analyzeHandler(req, res) {
             const prompt = `Analyze this image and extract any calendar events found.\n${rules}`;
             result = await model.generateContent([
                 prompt,
-                { inlineData: { data: image, mimeType: mimeType || 'image/jpeg' } },
+                { inlineData: { data: image, mimeType: mimeType || 'image/png' } },
             ]);
         } else if (type === 'text') {
             const prompt = `Analyze this text and extract any calendar events found.\n${rules}\nText to analyze:\n${text}`;
@@ -88,7 +102,8 @@ export async function analyzeHandler(req, res) {
         const responseText = result.response.text();
         const jsonString = responseText.replace(/```json\n?|\n?```/g, '').trim();
         const data = JSON.parse(jsonString);
-        return res.json(data);
+        return res.status(200).json(data);
+
     } catch (err) {
         console.error('[api/analyze] Error:', err?.message || err);
         if (err instanceof SyntaxError) {
