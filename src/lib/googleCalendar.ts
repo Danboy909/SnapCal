@@ -1,4 +1,3 @@
-/// <reference path="../types/gis.d.ts" />
 import type { CalendarEvent, CalendarApiResponse } from '../types';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -6,6 +5,8 @@ const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.goog
 
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let accessToken: string | null = null;
+let pendingResolve: (() => void) | null = null;
+let pendingReject: ((err: Error) => void) | null = null;
 
 export const initGoogleClient = (): Promise<void> => {
     return new Promise((resolve) => {
@@ -20,13 +21,22 @@ export const initGoogleClient = (): Promise<void> => {
                     callback: (response: google.accounts.oauth2.TokenResponse) => {
                         if (response.error) {
                             console.error('Token error:', response.error, response.error_description);
+                            pendingReject?.(new Error(response.error_description ?? response.error ?? 'OAuth error'));
+                            pendingReject = null;
+                            pendingResolve = null;
                             return;
                         }
                         accessToken = response.access_token;
                         console.log('Access token received');
+                        pendingResolve?.();
+                        pendingResolve = null;
+                        pendingReject = null;
                     },
                     error_callback: (error: { type: string; message: string }) => {
                         console.error('OAuth error:', error);
+                        pendingReject?.(new Error(error.message || error.type));
+                        pendingReject = null;
+                        pendingResolve = null;
                     }
                 });
 
@@ -42,20 +52,8 @@ export const signIn = (): Promise<void> => {
             reject(new Error('Token client not initialized'));
             return;
         }
-
-        // Store the original callback
-        const originalCallback = tokenClient.callback;
-
-        // Wrap callback to resolve promise
-        tokenClient.callback = (response) => {
-            originalCallback(response);
-            if (response.error) {
-                reject(new Error(response.error_description || response.error));
-            } else {
-                resolve();
-            }
-        };
-
+        pendingResolve = resolve;
+        pendingReject = reject;
         tokenClient.requestAccessToken({ prompt: '' });
     });
 };
@@ -94,7 +92,7 @@ export const fetchCalendarList = async (): Promise<import('../types').CalendarLi
         const data = await response.json();
         console.log('Calendar list fetched:', data);
 
-        return data.items.map((item: any) => ({
+        return data.items.map((item: { id: string; summary: string; backgroundColor?: string; accessRole: string }) => ({
             id: item.id,
             summary: item.summary,
             backgroundColor: item.backgroundColor || '#039BE5',
@@ -122,7 +120,15 @@ export const createCalendarEvent = async (
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     // Convert to Google Calendar resource format
-    const resource: any = {
+    const resource: {
+        summary: string;
+        location?: string;
+        description?: string;
+        start: { dateTime: string; timeZone: string } | { date: string };
+        end: { dateTime: string; timeZone: string } | { date: string };
+        reminders?: { useDefault: boolean; overrides: { method: string; minutes: number }[] };
+        recurrence?: string[];
+    } = {
         summary: event.title,
         location: event.location,
         description: event.description,
