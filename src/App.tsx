@@ -68,7 +68,6 @@ function App() {
   const [showProviderPicker, setShowProviderPicker] = useState(false);
 
   // Init block state
-  const [isMsalInitialized, setIsMsalInitialized] = useState(false);
 
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -115,7 +114,6 @@ function App() {
     if (hasMicrosoftKey) {
       initOutlookClient()
         .then(() => {
-          setIsMsalInitialized(true);
           setIsMicrosoftSignedIn(isOutlookSignedIn());
           if (isOutlookSignedIn()) {
             setMsUserEmail(getOutlookUserEmail());
@@ -127,8 +125,6 @@ function App() {
           // Let's not show an error on mount just yet, but log it explicitly.
           // The real issue might be that handleConnectOutlook fires before init finishes.
         });
-    } else {
-      setIsMsalInitialized(true); // Default to true if no key so it doesn't hang UI
     }
   }, [hasGoogleKeys, hasMicrosoftKey]);
 
@@ -159,15 +155,12 @@ function App() {
   };
 
   const handleConnectOutlook = async () => {
-    if (!isMsalInitialized) {
-      setError('Please wait for Microsoft services to finish loading.');
-      return;
-    }
     try {
+      // Ensure MSAL is initialized before proceeding (handles race conditions on fast clicks)
+      await initOutlookClient();
       await signInOutlook();
-      // Execution will stop here as the page redirects.
-      // After MSAL redirects back, the useEffect on mount will catch the initialized state
-      // and update `isMicrosoftSignedIn` and `msUserEmail`.
+      // Execution stops here as the page redirects to Microsoft.
+      // After redirecting back, the useEffect on mount will update isMicrosoftSignedIn and msUserEmail.
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Outlook Sign In failed: ${errorMessage}`);
