@@ -152,6 +152,8 @@ export const createOutlookEvent = async (
         }),
     };
 
+    console.log('[Outlook] Sending event body to Graph:', JSON.stringify(body, null, 2));
+
     const response = await fetch('https://graph.microsoft.com/v1.0/me/events', {
         method: 'POST',
         headers: {
