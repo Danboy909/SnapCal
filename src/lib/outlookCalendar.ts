@@ -137,13 +137,18 @@ export const createOutlookEvent = async (
         endObj = { date: nextDayStr };
     }
 
+    // Strip placeholder/empty values – Graph API rejects them with "unable to deserialize"
+    const locationValue = event.location?.trim();
+    const isRealLocation = locationValue && locationValue.toLowerCase() !== 'tbd' && locationValue !== 'N/A';
+    const descriptionValue = event.description?.trim();
+
     const body: Record<string, unknown> = {
         subject: event.title,
         start: startObj,
         end: endObj,
-        ...(event.location && { location: { displayName: event.location } }),
-        ...(event.description && {
-            body: { contentType: 'text', content: event.description },
+        ...(isRealLocation && { location: { displayName: locationValue } }),
+        ...(descriptionValue && {
+            body: { contentType: 'text', content: descriptionValue },
         }),
     };
 
@@ -158,6 +163,7 @@ export const createOutlookEvent = async (
 
     if (!response.ok) {
         const err = await response.json();
+        console.error('Graph API error body:', JSON.stringify(err, null, 2));
         throw new Error(
             err?.error?.message || `Graph API error ${response.status}`
         );
