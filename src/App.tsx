@@ -239,6 +239,23 @@ function App() {
     const selectedEvents = currentEvents.filter(e => e.selected);
     if (selectedEvents.length === 0) return;
 
+    // --- Client-side rate limiting for calendar event creation ---
+    // Max 50 events created per hour, tracked in localStorage
+    const EVENT_RATE_LIMIT = 50;
+    const HOUR_MS = 60 * 60 * 1000;
+    const now = Date.now();
+    let creationTimestamps: number[] = [];
+    try {
+      creationTimestamps = JSON.parse(localStorage.getItem('snapcal_event_creation_log') || '[]');
+    } catch { creationTimestamps = []; }
+    creationTimestamps = creationTimestamps.filter((t: number) => now - t < HOUR_MS);
+    if (creationTimestamps.length + selectedEvents.length > EVENT_RATE_LIMIT) {
+      const oldestTs = creationTimestamps[0] || now;
+      const resetInMinutes = Math.ceil((oldestTs + HOUR_MS - now) / 60000);
+      setError(`Rate limit exceeded: you can only add ${EVENT_RATE_LIMIT} events per hour. Try again in ${resetInMinutes} minute(s).`);
+      return;
+    }
+
     setShowProviderPicker(false);
     setIsCreatingEvents(true);
     setError(null);
@@ -297,6 +314,11 @@ function App() {
           }]);
         });
       }
+
+      // Record timestamps of newly created events for rate limiting
+      const newTimestamps = Array(selectedEvents.length).fill(Date.now());
+      const updatedLog = [...creationTimestamps, ...newTimestamps];
+      localStorage.setItem('snapcal_event_creation_log', JSON.stringify(updatedLog));
 
       setCurrentEvents([]);
       setEditingEvent(null);

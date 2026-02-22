@@ -1,21 +1,31 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 10;
+// --- Rate Limiter ---
+// Separate trackers for image uploads (20/hr) and text analysis (100/hr)
+const HOUR_MS = 60 * 60 * 1000;
 
 /** @type {Map<string, number[]>} */
-const ipTimestamps = new Map();
+const imageTimestamps = new Map();
+/** @type {Map<string, number[]>} */
+const textTimestamps = new Map();
 
-function isRateLimited(ip) {
+const LIMITS = {
+    image: { max: 20, windowMs: HOUR_MS, label: 'screenshot uploads' },
+    text: { max: 100, windowMs: HOUR_MS, label: 'text analyses' },
+};
+
+function checkRateLimit(ip, type) {
+    const { max, windowMs } = LIMITS[type] || LIMITS.text;
+    const store = type === 'image' ? imageTimestamps : textTimestamps;
     const now = Date.now();
-    const timestamps = (ipTimestamps.get(ip) || []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-    if (timestamps.length >= RATE_LIMIT_MAX) {
-        ipTimestamps.set(ip, timestamps);
-        return true;
+    const timestamps = (store.get(ip) || []).filter(t => now - t < windowMs);
+    if (timestamps.length >= max) {
+        store.set(ip, timestamps);
+        return { limited: true, remaining: 0, resetInMinutes: Math.ceil((timestamps[0] + windowMs - now) / 60000) };
     }
     timestamps.push(now);
-    ipTimestamps.set(ip, timestamps);
-    return false;
+    store.set(ip, timestamps);
+    return { limited: false, remaining: max - timestamps.length };
 }
 
 const SHARED_PROMPT_RULES = (currentDate, year) => `
@@ -59,20 +69,26 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'unknown';
-    if (isRateLimited(ip)) {
-        return res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' });
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    const { type, image, mimeType, text } = req.body;
+
+    if (!type || (type === 'image' && !image) || (type === 'text' && !text)) {
+        return res.status(400).json({ error: 'Invalid request body.' });
+    }
+
+    // Apply per-type rate limiting
+    const rateResult = checkRateLimit(ip, type);
+    if (rateResult.limited) {
+        res.setHeader('Retry-After', String(rateResult.resetInMinutes * 60));
+        return res.status(429).json({
+            error: `Rate limit exceeded: too many ${LIMITS[type]?.label || 'requests'}. Try again in ${rateResult.resetInMinutes} minute(s).`,
+            retryAfterMinutes: rateResult.resetInMinutes,
+        });
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
         return res.status(500).json({ error: 'Server configuration error: GEMINI_API_KEY not set.' });
-    }
-
-    const { type, image, mimeType, text } = req.body;
-
-    if (!type || (type === 'image' && !image) || (type === 'text' && !text)) {
-        return res.status(400).json({ error: 'Invalid request body.' });
     }
 
     try {
