@@ -7,6 +7,8 @@ import { Toast } from './components/Toast';
 import { CalendarSelector } from './components/CalendarSelector';
 import { ReminderSettings } from './components/ReminderSettings';
 import { CalendarProviderSelector } from './components/CalendarProviderSelector';
+import { AnalysisProgress, EventListSkeleton } from './components/AnalysisProgress';
+import type { AnalysisStep } from './components/AnalysisProgress';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { extractEventFromImage, extractEventFromText } from './lib/gemini';
 import { initGoogleClient, signIn, isSignedIn, createCalendarEvent, signOut, fetchCalendarList } from './lib/googleCalendar';
@@ -31,6 +33,7 @@ function App() {
     } catch { return null; }
   });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<AnalysisStep>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; link?: string; fallbackAction?: () => void }>>([]);
@@ -181,13 +184,19 @@ function App() {
       return;
     }
 
-
     setIsAnalyzing(true);
+    setAnalysisStep('uploading');
     setError(null);
     setSuccessMessage(null);
 
     try {
+      // Brief pause so user sees the 'uploading' step
+      await new Promise(r => setTimeout(r, 400));
+      setAnalysisStep('analyzing');
       const result = await extractEventFromImage(base64);
+      setAnalysisStep('extracting');
+      await new Promise(r => setTimeout(r, 350));
+
       if (result.events && result.events.length > 0) {
         const eventsWithIds = result.events.map((event, index) => ({
           ...event,
@@ -195,6 +204,8 @@ function App() {
           selected: true,
           durationMinutes: event.durationMinutes || 60
         }));
+        setAnalysisStep('done');
+        await new Promise(r => setTimeout(r, 600));
         setCurrentEvents(eventsWithIds);
       } else {
         setError('No calendar events detected in this image. Try uploading a screenshot with visible dates, times, or event details.');
@@ -204,19 +215,23 @@ function App() {
       setError(`Gemini API Error: ${errorMessage}`);
     } finally {
       setIsAnalyzing(false);
+      setAnalysisStep(null);
     }
   };
 
   const handleTextSubmit = async (text: string) => {
     if (!text.trim()) return;
 
-
     setIsAnalyzing(true);
+    setAnalysisStep('analyzing');
     setError(null);
     setSuccessMessage(null);
 
     try {
       const result = await extractEventFromText(text);
+      setAnalysisStep('extracting');
+      await new Promise(r => setTimeout(r, 350));
+
       if (result.events && result.events.length > 0) {
         const eventsWithIds = result.events.map((event, index) => ({
           ...event,
@@ -224,6 +239,8 @@ function App() {
           selected: true,
           durationMinutes: event.durationMinutes || 60
         }));
+        setAnalysisStep('done');
+        await new Promise(r => setTimeout(r, 600));
         setCurrentEvents(eventsWithIds);
       } else {
         setError('No calendar events detected in this text.');
@@ -233,6 +250,7 @@ function App() {
       setError(`Gemini API Error: ${errorMessage}`);
     } finally {
       setIsAnalyzing(false);
+      setAnalysisStep(null);
     }
   };
 
@@ -493,9 +511,13 @@ function App() {
           )}
 
           {isAnalyzing && (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-4" />
-              <p className="text-lg font-medium">Analyzing with AI...</p>
+            <div>
+              <AnalysisProgress step={analysisStep} />
+              {analysisStep === 'extracting' && (
+                <div className="mt-4">
+                  <EventListSkeleton count={2} />
+                </div>
+              )}
             </div>
           )}
 
