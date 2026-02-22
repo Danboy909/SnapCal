@@ -11,6 +11,7 @@ import { AnalysisProgress, EventListSkeleton } from './components/AnalysisProgre
 import type { AnalysisStep } from './components/AnalysisProgress';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { extractEventFromImage, extractEventFromText } from './lib/gemini';
+import { track } from '@vercel/analytics';
 import { initGoogleClient, signIn, isSignedIn, createCalendarEvent, signOut, fetchCalendarList } from './lib/googleCalendar';
 import { initOutlookClient, isOutlookSignedIn, signInOutlook, signOutOutlook, getOutlookUserEmail, createOutlookEvent } from './lib/outlookCalendar';
 import { downloadIcs } from './lib/icsDownload';
@@ -207,12 +208,15 @@ function App() {
         setAnalysisStep('done');
         await new Promise(r => setTimeout(r, 600));
         setCurrentEvents(eventsWithIds);
+        track('image_analyzed', { event_count: eventsWithIds.length });
       } else {
         setError('No calendar events detected in this image. Try uploading a screenshot with visible dates, times, or event details.');
+        track('image_analyzed', { event_count: 0 });
       }
     } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Gemini API Error: ${errorMessage}`);
+      track('analysis_error', { type: 'image', message: errorMessage });
     } finally {
       setIsAnalyzing(false);
       setAnalysisStep(null);
@@ -242,12 +246,15 @@ function App() {
         setAnalysisStep('done');
         await new Promise(r => setTimeout(r, 600));
         setCurrentEvents(eventsWithIds);
+        track('text_analyzed', { event_count: eventsWithIds.length });
       } else {
         setError('No calendar events detected in this text.');
+        track('text_analyzed', { event_count: 0 });
       }
     } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Gemini API Error: ${errorMessage}`);
+      track('analysis_error', { type: 'text', message: errorMessage });
     } finally {
       setIsAnalyzing(false);
       setAnalysisStep(null);
@@ -338,6 +345,7 @@ function App() {
       const newTimestamps = Array(selectedEvents.length).fill(Date.now());
       const updatedLog = [...creationTimestamps, ...newTimestamps];
       localStorage.setItem('snapcal_event_creation_log', JSON.stringify(updatedLog));
+      track('events_added', { provider, count: selectedEvents.length });
 
       setCurrentEvents([]);
       setEditingEvent(null);
@@ -345,6 +353,7 @@ function App() {
       console.error('Batch creation error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Failed to add events: ${errorMessage}`);
+      track('calendar_error', { provider, message: errorMessage });
 
       // Offer fallback
       setToasts(prev => [...prev, {
