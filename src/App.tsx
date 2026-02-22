@@ -7,6 +7,7 @@ import { Toast } from './components/Toast';
 import { CalendarSelector } from './components/CalendarSelector';
 import { ReminderSettings } from './components/ReminderSettings';
 import { CalendarProviderSelector } from './components/CalendarProviderSelector';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { extractEventFromImage, extractEventFromText } from './lib/gemini';
 import { initGoogleClient, signIn, isSignedIn, createCalendarEvent, signOut, fetchCalendarList } from './lib/googleCalendar';
 import { initOutlookClient, isOutlookSignedIn, signInOutlook, signOutOutlook, getOutlookUserEmail, createOutlookEvent } from './lib/outlookCalendar';
@@ -481,11 +482,13 @@ function App() {
                 </div>
               </div>
 
-              {inputMode === 'image' ? (
-                <UploadArea onImageSelect={handleImageSelect} />
-              ) : (
-                <TextInputArea onTextSubmit={handleTextSubmit} isAnalyzing={isAnalyzing} />
-              )}
+              <ErrorBoundary section="the image scanner">
+                {inputMode === 'image' ? (
+                  <UploadArea onImageSelect={handleImageSelect} />
+                ) : (
+                  <TextInputArea onTextSubmit={handleTextSubmit} isAnalyzing={isAnalyzing} />
+                )}
+              </ErrorBoundary>
             </div>
           )}
 
@@ -503,13 +506,15 @@ function App() {
                 <p className="text-slate-500 dark:text-slate-400">Select which events to add to your calendar</p>
               </div>
 
-              <EventList
-                events={currentEvents}
-                onToggleSelect={(id) => setCurrentEvents(events => events.map(e => e.id === id ? { ...e, selected: !e.selected } : e))}
-                onSelectAll={() => setCurrentEvents(events => events.map(e => ({ ...e, selected: true })))}
-                onDeselectAll={() => setCurrentEvents(events => events.map(e => ({ ...e, selected: false })))}
-                onEdit={setEditingEvent}
-              />
+              <ErrorBoundary section="the event list">
+                <EventList
+                  events={currentEvents}
+                  onToggleSelect={(id) => setCurrentEvents(events => events.map(e => e.id === id ? { ...e, selected: !e.selected } : e))}
+                  onSelectAll={() => setCurrentEvents(events => events.map(e => ({ ...e, selected: true })))}
+                  onDeselectAll={() => setCurrentEvents(events => events.map(e => ({ ...e, selected: false })))}
+                  onEdit={setEditingEvent}
+                />
+              </ErrorBoundary>
 
               <div className="flex justify-center gap-3 relative">
                 <button
